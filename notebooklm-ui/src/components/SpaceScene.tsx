@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 
-const SolarSystem: React.FC = () => {
+const SpaceScene: React.FC<{ onBlackHoleClick?: () => void; isOpen?: boolean }> = ({ onBlackHoleClick, isOpen }) => {
   const mountRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -17,42 +17,39 @@ const SolarSystem: React.FC = () => {
       0.1,
       1000
     );
-    camera.position.z = 20;
+    camera.position.z = 30;
 
     const renderer = new THREE.WebGLRenderer();
     renderer.setSize(mount.clientWidth, mount.clientHeight);
     mount.appendChild(renderer.domElement);
 
-    // Sun
-    const sunGeometry = new THREE.SphereGeometry(3, 32, 32);
-    const sunMaterial = new THREE.MeshBasicMaterial({ color: 0xffd700 });
-    const sun = new THREE.Mesh(sunGeometry, sunMaterial);
-    scene.add(sun);
+    // Black hole
+    const blackHoleGeometry = new THREE.TorusGeometry(5, 2, 16, 100);
+    const blackHoleMaterial = new THREE.MeshBasicMaterial({ color: 0x222222 });
+    const blackHole = new THREE.Mesh(blackHoleGeometry, blackHoleMaterial);
+    scene.add(blackHole);
 
-    // Planets
-    const planetColors = [0x2196f3, 0x8bc34a, 0xff5722, 0x9c27b0];
-    for (let i = 0; i < 4; i++) {
-      const planetGeometry = new THREE.SphereGeometry(1, 32, 32);
-      const planetMaterial = new THREE.MeshBasicMaterial({ color: planetColors[i] });
-      const planet = new THREE.Mesh(planetGeometry, planetMaterial);
-      planet.position.x = 6 + i * 3;
-      scene.add(planet);
-    }
-
+    // Animate
     function animate() {
       requestAnimationFrame(animate);
-      sun.rotation.y += 0.005;
+      blackHole.rotation.x += 0.01;
+      blackHole.rotation.y += 0.01;
       renderer.render(scene, camera);
     }
     animate();
+
+    // Click handler
+    renderer.domElement.addEventListener('click', () => {
+      if (onBlackHoleClick) onBlackHoleClick();
+    });
 
     return () => {
       mount.removeChild(renderer.domElement);
       renderer.dispose();
     };
-  }, []);
+  }, [onBlackHoleClick]);
 
   return <div ref={mountRef} style={{ width: '100vw', height: '40vh' }} />;
 };
 
-export default SolarSystem;
+export default SpaceScene;

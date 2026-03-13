@@ -1,1 +1,1 @@
-# NeuralRAG Backend Application
+# Cosmic RAG backend app package

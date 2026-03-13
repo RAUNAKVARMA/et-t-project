@@ -1,4 +1,3 @@
-import torch
 from collections import Counter
 
 def load_data(filepath):

@@ -1,6 +1,4 @@
-'use client';
-
-import { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -13,146 +11,87 @@ interface Message {
   timestamp: Date;
 }
 
-interface ChatInterfaceProps {
-  messages: Message[];
-  onSendMessage: (message: string) => void;
-  isLoading: boolean;
-}
-
-export default function ChatInterface({ messages, onSendMessage, isLoading }: ChatInterfaceProps) {
+const ChatInterface: React.FC = () => {
+  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
   useEffect(() => {
-    scrollToBottom();
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (input.trim() && !isLoading) {
-      onSendMessage(input.trim());
-      setInput('');
+    if (!input.trim() || isLoading) return;
+    setIsLoading(true);
+    setMessages([...messages, { role: 'user', content: input, timestamp: new Date() }]);
+    // Call backend API
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: input }),
+      });
+      const data = await res.json();
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: data.answer,
+          sources: data.sources,
+          timestamp: new Date(),
+        },
+      ]);
+    } catch (err) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: 'Error: Unable to get response.',
+          timestamp: new Date(),
+        },
+      ]);
     }
+    setInput('');
+    setIsLoading(false);
   };
 
   return (
-    <div className="chat-interface-cosmic">
-      <div className="cosmic-header">
-        <div className="cosmic-title">
-          <span className="cosmic-icon">🌌</span>
-          <h2>Cosmic Knowledge Assistant</h2>
-        </div>
-        <p className="cosmic-subtitle">Ask anything about your uploaded documents</p>
-      </div>
-
-      <div className="chat-messages-cosmic">
-        {messages.length === 0 ? (
-          <div className="chat-empty-cosmic">
-            <div className="empty-icon-cosmic">✨</div>
-            <h3>Ready to explore your knowledge universe</h3>
-            <p>Upload documents and ask questions to unlock insights</p>
-            <div className="suggested-queries-cosmic">
-              <button 
-                className="suggested-query-cosmic"
-                onClick={() => setInput('Summarize the key points from my documents')}
-              >
-                📝 Summarize documents
-              </button>
-              <button 
-                className="suggested-query-cosmic"
-                onClick={() => setInput('What are the main insights?')}
-              >
-                💡 Find insights
-              </button>
-              <button 
-                className="suggested-query-cosmic"
-                onClick={() => setInput('Explain the core concepts')}
-              >
-                🎯 Explain concepts
-              </button>
-            </div>
-          </div>
-        ) : (
-          <>
-            {messages.map((message, index) => (
-              <div 
-                key={index} 
-                className={`message-cosmic ${message.role}`}
-              >
-                <div className="message-avatar-cosmic">
-                  {message.role === 'user' ? '👤' : '🤖'}
-                </div>
-                <div className="message-content-cosmic">
-                  <div className="message-text-cosmic">
-                    {message.content}
-                  </div>
-                  {message.sources && message.sources.length > 0 && (
-                    <div className="message-sources-cosmic">
-                      <div className="sources-header-cosmic">📚 Sources:</div>
-                      {message.sources.map((source, idx) => (
-                        <div key={idx} className="source-item-cosmic">
-                          <span className="source-doc-cosmic">{source.document}</span>
-                          <span className="source-score-cosmic">
-                            {(source.score * 100).toFixed(0)}% relevant
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  <div className="message-timestamp-cosmic">
-                    {new Date(message.timestamp).toLocaleTimeString()}
-                  </div>
-                </div>
-              </div>
-            ))}
-            {isLoading && (
-              <div className="message-cosmic assistant">
-                <div className="message-avatar-cosmic">🤖</div>
-                <div className="message-content-cosmic">
-                  <div className="typing-indicator-cosmic">
-                    <span></span>
-                    <span></span>
-                    <span></span>
-                  </div>
-                </div>
+    <div style={{ width: '100%', maxWidth: 600, margin: '2rem auto' }}>
+      <div style={{ minHeight: 300, background: '#222', borderRadius: 8, padding: 16 }}>
+        {messages.map((msg, idx) => (
+          <div key={idx} style={{ marginBottom: 12 }}>
+            <b>{msg.role === 'user' ? 'You' : 'AI'}:</b> {msg.content}
+            {msg.sources && msg.sources.length > 0 && (
+              <div style={{ fontSize: '0.9em', color: '#aaa', marginTop: 4 }}>
+                Sources:
+                <ul>
+                  {msg.sources.map((src, i) => (
+                    <li key={i}>{src.document} (score: {src.score.toFixed(2)}, chunk: {src.chunk_index})</li>
+                  ))}
+                </ul>
               </div>
             )}
-            <div ref={messagesEndRef} />
-          </>
-        )}
+          </div>
+        ))}
+        <div ref={messagesEndRef} />
       </div>
-
-      <form className="chat-input-form-cosmic" onSubmit={handleSubmit}>
-        <div className="input-container-cosmic">
-          <textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                handleSubmit(e);
-              }
-            }}
-            placeholder="Ask the cosmos anything..."
-            className="chat-input-cosmic"
-            rows={1}
-            disabled={isLoading}
-          />
-          <button 
-            type="submit" 
-            className="send-button-cosmic"
-            disabled={!input.trim() || isLoading}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />
-            </svg>
-          </button>
-        </div>
+      <form onSubmit={handleSend} style={{ display: 'flex', marginTop: 16 }}>
+        <input
+          type="text"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          placeholder="Ask the cosmos..."
+          style={{ flex: 1, padding: 8, borderRadius: 4, border: 'none' }}
+          disabled={isLoading}
+        />
+        <button type="submit" disabled={isLoading || !input.trim()} style={{ marginLeft: 8, padding: '8px 16px', borderRadius: 4, background: '#1a237e', color: '#fff', border: 'none' }}>
+          Send
+        </button>
       </form>
     </div>
   );
-}
+};
+
+export default ChatInterface;

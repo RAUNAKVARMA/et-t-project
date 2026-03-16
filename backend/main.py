@@ -14,7 +14,7 @@ from app.vector_store import VectorStore
 from app.knowledge_graph import KnowledgeGraphBuilder
 
 app = FastAPI(title="Cosmic RAG API")
-
+//middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],

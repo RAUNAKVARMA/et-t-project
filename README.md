@@ -1,4 +1,4 @@
-🚀 #ET-T Project
+🚀 ET-T Project
 <p align="center"> <img src="https://img.shields.io/github/stars/RAUNAKVARMA/et-t-project?style=for-the-badge" /> <img src="https://img.shields.io/github/forks/RAUNAKVARMA/et-t-project?style=for-the-badge" /> <img src="https://img.shields.io/github/license/RAUNAKVARMA/et-t-project?style=for-the-badge" /> </p> <p align="center"> <b>⚡ A Scalable, High-Performance Tech Solution Built for Real-World Applications</b> </p>
 📌 Problem Statement
 
@@ -12,7 +12,7 @@ Inefficient data handling
 
 👉 This project solves these challenges with a clean and optimized system design.
 
-💡#Solution
+💡Solution
 
 The ET-T Project is designed with:
 
@@ -24,7 +24,7 @@ The ET-T Project is designed with:
 
 📈 Scalable system design
 
-🏗️#Architecture
+🏗️ Architecture
 Client → API Layer → Business Logic → Database
 
 Client Layer: Handles user interaction
@@ -66,7 +66,7 @@ Secure architecture
 
 Easy extensibility
 
-📂 #Project Structure
+📂 Project Structure
 et-t-project/
 │── src/
 │   ├── controllers/
@@ -89,7 +89,7 @@ Response:
 }
 
 
-🧪 #Future Enhancements
+🧪 Future Enhancements
 
 🔹 Add AI/ML integration
 
@@ -108,7 +108,7 @@ Response:
 
 MIT License
 
-👨‍💻 #Author
+👨‍💻 Author
 
 Raunak Varma
 Aryan Kapoor

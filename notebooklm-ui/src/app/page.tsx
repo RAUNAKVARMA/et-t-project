@@ -1,7 +1,9 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
-import SpaceScene from '@/components/SpaceScene';
+
+const SpaceScene = dynamic(() => import('@/components/SpaceScene'), { ssr: false });
 
 export default function Home() {
   const router = useRouter();

@@ -2,10 +2,30 @@
 
 import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 
 interface SpaceSceneProps {
   onBlackHoleClick?: () => void;
 }
+
+/* ─── helpers ──────────────────────────────────────────────────────── */
+
+function starTemp(hue: number, sat: number, lum: number, out: THREE.Color): void {
+  out.setHSL(hue, sat, lum);
+}
+
+function spiralXZ(
+  armOffset: number,
+  t: number,
+  twist: number,
+  scatter: number,
+): [number, number] {
+  const angle = armOffset + t * twist + (Math.random() - 0.5) * scatter;
+  const r = t;
+  return [Math.cos(angle) * r, Math.sin(angle) * r];
+}
+
+/* ─── component ────────────────────────────────────────────────────── */
 
 const SpaceScene: React.FC<SpaceSceneProps> = ({ onBlackHoleClick }) => {
   const mountRef = useRef<HTMLDivElement>(null);
@@ -19,134 +39,278 @@ const SpaceScene: React.FC<SpaceSceneProps> = ({ onBlackHoleClick }) => {
     const mount = mountRef.current;
     if (!mount) return;
 
-    const w = mount.clientWidth;
-    const h = Math.max(mount.clientHeight, 1);
+    const W = mount.clientWidth;
+    const H = Math.max(mount.clientHeight, 1);
 
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x000005);
-
-    const camera = new THREE.PerspectiveCamera(50, w / h, 0.1, 800);
-    camera.position.set(0, 18, 28);
-    camera.lookAt(0, 0, 0);
-
+    /* renderer */
     const renderer = new THREE.WebGLRenderer({
       antialias: true,
       powerPreference: 'high-performance',
     });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.setSize(w, h);
+    renderer.setSize(W, H);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     mount.appendChild(renderer.domElement);
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x000003);
+    scene.fog = new THREE.FogExp2(0x000003, 0.0012);
+
+    /* camera */
+    const camera = new THREE.PerspectiveCamera(50, W / H, 0.1, 2000);
+    camera.position.set(0, 22, 32);
+
+    /* orbit controls — zoom & pan */
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.06;
+    controls.minDistance = 4;
+    controls.maxDistance = 250;
+    controls.maxPolarAngle = Math.PI * 0.85;
+    controls.autoRotate = true;
+    controls.autoRotateSpeed = 0.15;
+    controls.target.set(0, 0, 0);
+    controls.enablePan = false;
 
     const clock = new THREE.Clock();
     const raycaster = new THREE.Raycaster();
     const pointer = new THREE.Vector2();
+    const c = new THREE.Color();
 
-    // ─── Background stars ───────────────────────────────────────────
-    const BG_STARS = 4500;
+    /* ── 1. Deep-field background stars ──────────────────────────── */
+    const BG = 9000;
     const bgGeo = new THREE.BufferGeometry();
-    const bgPos = new Float32Array(BG_STARS * 3);
-    const bgCol = new Float32Array(BG_STARS * 3);
-    for (let i = 0; i < BG_STARS; i++) {
-      const r = 80 + Math.random() * 300;
-      const u = Math.random();
-      const v = Math.random();
-      const theta = 2 * Math.PI * u;
-      const phi = Math.acos(2 * v - 1);
+    const bgP = new Float32Array(BG * 3);
+    const bgC = new Float32Array(BG * 3);
+    for (let i = 0; i < BG; i++) {
+      const r = 120 + Math.random() * 600;
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(2 * Math.random() - 1);
       const sp = Math.sin(phi);
-      bgPos[i * 3] = r * sp * Math.cos(theta);
-      bgPos[i * 3 + 1] = r * sp * Math.sin(theta);
-      bgPos[i * 3 + 2] = r * Math.cos(phi);
-      const temp = 0.6 + Math.random() * 0.4;
-      bgCol[i * 3] = 0.7 + temp * 0.3;
-      bgCol[i * 3 + 1] = 0.75 + temp * 0.25;
-      bgCol[i * 3 + 2] = 0.9 + temp * 0.1;
+      bgP[i * 3] = r * sp * Math.cos(theta);
+      bgP[i * 3 + 1] = r * sp * Math.sin(theta);
+      bgP[i * 3 + 2] = r * Math.cos(phi);
+      const k = Math.random();
+      if (k < 0.15) starTemp(0.0, 0.8, 0.55 + Math.random() * 0.2, c);       // red dwarfs
+      else if (k < 0.5) starTemp(0.12, 0.35, 0.7 + Math.random() * 0.2, c);   // sun-like
+      else if (k < 0.8) starTemp(0.55, 0.25, 0.8 + Math.random() * 0.15, c);  // white
+      else starTemp(0.6, 0.6, 0.85 + Math.random() * 0.1, c);                  // blue giants
+      bgC[i * 3] = c.r;
+      bgC[i * 3 + 1] = c.g;
+      bgC[i * 3 + 2] = c.b;
     }
-    bgGeo.setAttribute('position', new THREE.BufferAttribute(bgPos, 3));
-    bgGeo.setAttribute('color', new THREE.BufferAttribute(bgCol, 3));
+    bgGeo.setAttribute('position', new THREE.BufferAttribute(bgP, 3));
+    bgGeo.setAttribute('color', new THREE.BufferAttribute(bgC, 3));
     scene.add(
-      new THREE.Points(
-        bgGeo,
-        new THREE.PointsMaterial({
-          size: 0.15,
-          vertexColors: true,
-          sizeAttenuation: true,
-          transparent: true,
-          opacity: 0.8,
-          depthWrite: false,
-        })
-      )
+      new THREE.Points(bgGeo, new THREE.PointsMaterial({
+        size: 0.18,
+        vertexColors: true,
+        sizeAttenuation: true,
+        transparent: true,
+        opacity: 0.85,
+        depthWrite: false,
+      }))
     );
 
-    // ─── Spiral-arm galaxy ──────────────────────────────────────────
-    const ARM_COUNT = 4;
-    const STARS_PER_ARM = 3200;
-    const BULGE_STARS = 4000;
-    const GALAXY_RADIUS = 22;
+    /* ── 2. Distant galaxies (visible when zoomed out) ───────────── */
+    const distGalGroup = new THREE.Group();
+    const DIST_GAL = 22;
+    for (let g = 0; g < DIST_GAL; g++) {
+      const count = 180 + Math.floor(Math.random() * 220);
+      const geo = new THREE.BufferGeometry();
+      const pos = new Float32Array(count * 3);
+      const col = new Float32Array(count * 3);
+      const galR = 2 + Math.random() * 4;
+      const isSpiral = Math.random() > 0.35;
+      const arms = isSpiral ? (2 + Math.floor(Math.random() * 3)) : 0;
+      const hue = 0.05 + Math.random() * 0.55;
 
-    const totalGalaxy = ARM_COUNT * STARS_PER_ARM + BULGE_STARS;
-    const gPos = new Float32Array(totalGalaxy * 3);
-    const gCol = new Float32Array(totalGalaxy * 3);
-    const gSize = new Float32Array(totalGalaxy);
+      for (let s = 0; s < count; s++) {
+        let lx: number, lz: number;
+        if (isSpiral && arms > 0) {
+          const arm = s % arms;
+          const t = Math.pow(Math.random(), 0.5) * galR;
+          const off = (arm / arms) * Math.PI * 2;
+          const a = off + (t / galR) * 2.5 + (Math.random() - 0.5) * 0.6;
+          lx = Math.cos(a) * t + (Math.random() - 0.5) * 0.6;
+          lz = Math.sin(a) * t + (Math.random() - 0.5) * 0.6;
+        } else {
+          const t = Math.pow(Math.random(), 1.8) * galR;
+          const a = Math.random() * Math.PI * 2;
+          lx = Math.cos(a) * t;
+          lz = Math.sin(a) * t * (0.4 + Math.random() * 0.6);
+        }
+        pos[s * 3] = lx;
+        pos[s * 3 + 1] = (Math.random() - 0.5) * 0.3;
+        pos[s * 3 + 2] = lz;
+        c.setHSL(hue + (Math.random() - 0.5) * 0.08, 0.4 + Math.random() * 0.3, 0.5 + Math.random() * 0.35);
+        col[s * 3] = c.r;
+        col[s * 3 + 1] = c.g;
+        col[s * 3 + 2] = c.b;
+      }
+      geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+      const pts = new THREE.Points(geo, new THREE.PointsMaterial({
+        size: 0.22,
+        vertexColors: true,
+        sizeAttenuation: true,
+        transparent: true,
+        opacity: 0.7,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      }));
+      const dist = 70 + Math.random() * 160;
+      const angle = Math.random() * Math.PI * 2;
+      const elev = (Math.random() - 0.5) * 80;
+      pts.position.set(Math.cos(angle) * dist, elev, Math.sin(angle) * dist);
+      pts.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+      distGalGroup.add(pts);
+    }
+    scene.add(distGalGroup);
 
-    let idx = 0;
-    const armColor = new THREE.Color();
-    const bulgeColor = new THREE.Color();
+    /* ── 3. Nebulae (emission, reflection, planetary) ────────────── */
+    const nebulaGroup = new THREE.Group();
+    interface NebulaConf { cx: number; cy: number; cz: number; r: number; count: number; hue: number; sat: number; lum: number; size: number; opacity: number; }
+    const nebulae: NebulaConf[] = [
+      { cx: 45, cy: 8, cz: -30, r: 18, count: 900, hue: 0.95, sat: 0.7, lum: 0.35, size: 3.5, opacity: 0.06 },   // emission (pink)
+      { cx: -55, cy: -5, cz: 20, r: 14, count: 700, hue: 0.6, sat: 0.55, lum: 0.4, size: 3.0, opacity: 0.05 },    // reflection (blue)
+      { cx: 20, cy: -18, cz: 50, r: 10, count: 500, hue: 0.45, sat: 0.65, lum: 0.38, size: 2.8, opacity: 0.055 },  // planetary (teal)
+      { cx: -35, cy: 22, cz: -55, r: 22, count: 1000, hue: 0.08, sat: 0.6, lum: 0.3, size: 4.0, opacity: 0.04 },   // supernova remnant (orange)
+      { cx: 60, cy: -12, cz: -60, r: 16, count: 600, hue: 0.78, sat: 0.5, lum: 0.32, size: 3.2, opacity: 0.045 },  // dark-edge violet
+    ];
+    for (const nb of nebulae) {
+      const geo = new THREE.BufferGeometry();
+      const pos = new Float32Array(nb.count * 3);
+      const col = new Float32Array(nb.count * 3);
+      for (let i = 0; i < nb.count; i++) {
+        const rr = Math.pow(Math.random(), 0.7) * nb.r;
+        const theta = Math.random() * Math.PI * 2;
+        const phi = Math.acos(2 * Math.random() - 1);
+        const sp = Math.sin(phi);
+        pos[i * 3] = nb.cx + rr * sp * Math.cos(theta);
+        pos[i * 3 + 1] = nb.cy + rr * sp * Math.sin(theta) * 0.6;
+        pos[i * 3 + 2] = nb.cz + rr * Math.cos(phi);
+        c.setHSL(nb.hue + (Math.random() - 0.5) * 0.06, nb.sat + Math.random() * 0.15, nb.lum + Math.random() * 0.15);
+        col[i * 3] = c.r;
+        col[i * 3 + 1] = c.g;
+        col[i * 3 + 2] = c.b;
+      }
+      geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+      nebulaGroup.add(new THREE.Points(geo, new THREE.PointsMaterial({
+        size: nb.size,
+        vertexColors: true,
+        sizeAttenuation: true,
+        transparent: true,
+        opacity: nb.opacity,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      })));
+    }
+    scene.add(nebulaGroup);
+
+    /* ── 4. Neutron stars / pulsars ──────────────────────────────── */
+    const pulsarGroup = new THREE.Group();
+    const pulsarData: { mesh: THREE.Mesh; beam1: THREE.Mesh; beam2: THREE.Mesh }[] = [];
+    const pulsarPositions: [number, number, number][] = [
+      [32, 3, -18], [-28, -6, 25], [15, 14, -42],
+    ];
+    for (const [px, py, pz] of pulsarPositions) {
+      const core = new THREE.Mesh(
+        new THREE.SphereGeometry(0.2, 16, 16),
+        new THREE.MeshBasicMaterial({ color: 0xccffff, transparent: true, opacity: 1 })
+      );
+      core.position.set(px, py, pz);
+      pulsarGroup.add(core);
+
+      const beamGeo = new THREE.CylinderGeometry(0.02, 0.15, 6, 8);
+      const beamMat = new THREE.MeshBasicMaterial({
+        color: 0x88ddff,
+        transparent: true,
+        opacity: 0.25,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      });
+      const b1 = new THREE.Mesh(beamGeo, beamMat.clone());
+      b1.position.set(px, py + 3, pz);
+      pulsarGroup.add(b1);
+      const b2 = new THREE.Mesh(beamGeo, beamMat.clone());
+      b2.position.set(px, py - 3, pz);
+      b2.rotation.z = Math.PI;
+      pulsarGroup.add(b2);
+      pulsarData.push({ mesh: core, beam1: b1, beam2: b2 });
+    }
+    scene.add(pulsarGroup);
+
+    /* ── 5. Main spiral galaxy ───────────────────────────────────── */
+    const ARM_COUNT = 5;
+    const STARS_PER_ARM = 4200;
+    const BULGE_STARS = 5500;
+    const HII_REGIONS = 400;
+    const GALAXY_R = 24;
+    const TWIST = 3.2;
+
+    const totalG = ARM_COUNT * STARS_PER_ARM + BULGE_STARS + HII_REGIONS;
+    const gP = new Float32Array(totalG * 3);
+    const gC = new Float32Array(totalG * 3);
+    let gi = 0;
 
     for (let arm = 0; arm < ARM_COUNT; arm++) {
-      const armOffset = (arm / ARM_COUNT) * Math.PI * 2;
+      const off = (arm / ARM_COUNT) * Math.PI * 2;
       for (let s = 0; s < STARS_PER_ARM; s++) {
-        const t = Math.pow(Math.random(), 0.6);
-        const r = t * GALAXY_RADIUS;
-        const twist = 2.8;
-        const angle = armOffset + t * twist + (Math.random() - 0.5) * 0.45;
-        const scatter = (1 - t * 0.3) * 1.8;
-        const x = Math.cos(angle) * r + (Math.random() - 0.5) * scatter;
-        const z = Math.sin(angle) * r + (Math.random() - 0.5) * scatter;
-        const diskThickness = 0.3 + (1 - t) * 0.6;
-        const y = (Math.random() - 0.5) * diskThickness;
+        const t = Math.pow(Math.random(), 0.55) * GALAXY_R;
+        const [lx, lz] = spiralXZ(off, t, TWIST / GALAXY_R, 0.4 + t * 0.015);
+        const scatter = (1 - (t / GALAXY_R) * 0.35) * 1.6;
+        gP[gi * 3] = lx + (Math.random() - 0.5) * scatter;
+        gP[gi * 3 + 1] = (Math.random() - 0.5) * (0.25 + (1 - t / GALAXY_R) * 0.5);
+        gP[gi * 3 + 2] = lz + (Math.random() - 0.5) * scatter;
 
-        gPos[idx * 3] = x;
-        gPos[idx * 3 + 1] = y;
-        gPos[idx * 3 + 2] = z;
-
-        const tNorm = r / GALAXY_RADIUS;
-        armColor.setHSL(0.58 + tNorm * 0.08, 0.65 + (1 - tNorm) * 0.3, 0.5 + (1 - tNorm) * 0.35);
-        gCol[idx * 3] = armColor.r;
-        gCol[idx * 3 + 1] = armColor.g;
-        gCol[idx * 3 + 2] = armColor.b;
-        gSize[idx] = 0.06 + Math.random() * 0.1 + (1 - tNorm) * 0.12;
-        idx++;
+        const n = t / GALAXY_R;
+        if (n < 0.35) starTemp(0.6 + n * 0.05, 0.7, 0.75 - n * 0.4, c);
+        else if (n < 0.7) starTemp(0.58, 0.5 + n * 0.15, 0.5 + (1 - n) * 0.3, c);
+        else starTemp(0.55 + n * 0.12, 0.6, 0.4 + Math.random() * 0.2, c);
+        gC[gi * 3] = c.r;
+        gC[gi * 3 + 1] = c.g;
+        gC[gi * 3 + 2] = c.b;
+        gi++;
       }
     }
 
     for (let b = 0; b < BULGE_STARS; b++) {
-      const r = Math.pow(Math.random(), 2.5) * 5;
-      const angle = Math.random() * Math.PI * 2;
-      const x = Math.cos(angle) * r;
-      const z = Math.sin(angle) * r;
-      const y = (Math.random() - 0.5) * (0.8 - r * 0.08);
+      const r = Math.pow(Math.random(), 2.8) * 5.5;
+      const a = Math.random() * Math.PI * 2;
+      gP[gi * 3] = Math.cos(a) * r;
+      gP[gi * 3 + 1] = (Math.random() - 0.5) * Math.max(0.15, 0.8 - r * 0.1);
+      gP[gi * 3 + 2] = Math.sin(a) * r;
+      const n = r / 5.5;
+      starTemp(0.1 + n * 0.04, 0.5 - n * 0.25, 0.9 - n * 0.35, c);
+      gC[gi * 3] = c.r;
+      gC[gi * 3 + 1] = c.g;
+      gC[gi * 3 + 2] = c.b;
+      gi++;
+    }
 
-      gPos[idx * 3] = x;
-      gPos[idx * 3 + 1] = y;
-      gPos[idx * 3 + 2] = z;
-
-      const bNorm = r / 5;
-      bulgeColor.setHSL(0.1 + bNorm * 0.05, 0.5 - bNorm * 0.2, 0.85 - bNorm * 0.3);
-      gCol[idx * 3] = bulgeColor.r;
-      gCol[idx * 3 + 1] = bulgeColor.g;
-      gCol[idx * 3 + 2] = bulgeColor.b;
-      gSize[idx] = 0.08 + (1 - bNorm) * 0.18;
-      idx++;
+    for (let h = 0; h < HII_REGIONS; h++) {
+      const arm = Math.floor(Math.random() * ARM_COUNT);
+      const off = (arm / ARM_COUNT) * Math.PI * 2;
+      const t = 0.3 + Math.random() * 0.5;
+      const rt = t * GALAXY_R;
+      const [lx, lz] = spiralXZ(off, rt, TWIST / GALAXY_R, 0.35);
+      gP[gi * 3] = lx + (Math.random() - 0.5) * 1.2;
+      gP[gi * 3 + 1] = (Math.random() - 0.5) * 0.15;
+      gP[gi * 3 + 2] = lz + (Math.random() - 0.5) * 1.2;
+      c.setHSL(0.93 + Math.random() * 0.05, 0.8, 0.55 + Math.random() * 0.15);
+      gC[gi * 3] = c.r;
+      gC[gi * 3 + 1] = c.g;
+      gC[gi * 3 + 2] = c.b;
+      gi++;
     }
 
     const galaxyGeo = new THREE.BufferGeometry();
-    galaxyGeo.setAttribute('position', new THREE.BufferAttribute(gPos, 3));
-    galaxyGeo.setAttribute('color', new THREE.BufferAttribute(gCol, 3));
-    galaxyGeo.setAttribute('size', new THREE.BufferAttribute(gSize, 1));
-
+    galaxyGeo.setAttribute('position', new THREE.BufferAttribute(gP, 3));
+    galaxyGeo.setAttribute('color', new THREE.BufferAttribute(gC, 3));
     const galaxyMat = new THREE.PointsMaterial({
-      size: 0.12,
+      size: 0.11,
       vertexColors: true,
       sizeAttenuation: true,
       transparent: true,
@@ -157,103 +321,88 @@ const SpaceScene: React.FC<SpaceSceneProps> = ({ onBlackHoleClick }) => {
     const galaxy = new THREE.Points(galaxyGeo, galaxyMat);
     scene.add(galaxy);
 
-    // ─── Dust / nebula glow in arms ─────────────────────────────────
-    const DUST = 600;
+    /* ── 6. Galaxy dust lanes ────────────────────────────────────── */
+    const DUST = 1200;
     const dustGeo = new THREE.BufferGeometry();
-    const dustPos = new Float32Array(DUST * 3);
-    const dustCol = new Float32Array(DUST * 3);
-    const dc = new THREE.Color();
+    const dP = new Float32Array(DUST * 3);
+    const dC = new Float32Array(DUST * 3);
     for (let d = 0; d < DUST; d++) {
       const arm = Math.floor(Math.random() * ARM_COUNT);
-      const armOff = (arm / ARM_COUNT) * Math.PI * 2;
-      const t = 0.15 + Math.random() * 0.7;
-      const r = t * GALAXY_RADIUS;
-      const angle = armOff + t * 2.8 + (Math.random() - 0.5) * 0.55;
-      dustPos[d * 3] = Math.cos(angle) * r + (Math.random() - 0.5) * 2.5;
-      dustPos[d * 3 + 1] = (Math.random() - 0.5) * 0.4;
-      dustPos[d * 3 + 2] = Math.sin(angle) * r + (Math.random() - 0.5) * 2.5;
-      dc.setHSL(0.55 + Math.random() * 0.15, 0.7, 0.35);
-      dustCol[d * 3] = dc.r;
-      dustCol[d * 3 + 1] = dc.g;
-      dustCol[d * 3 + 2] = dc.b;
+      const off = (arm / ARM_COUNT) * Math.PI * 2;
+      const t = 0.12 + Math.random() * 0.75;
+      const rt = t * GALAXY_R;
+      const [lx, lz] = spiralXZ(off, rt, TWIST / GALAXY_R, 0.5);
+      dP[d * 3] = lx + (Math.random() - 0.5) * 2.5;
+      dP[d * 3 + 1] = (Math.random() - 0.5) * 0.3;
+      dP[d * 3 + 2] = lz + (Math.random() - 0.5) * 2.5;
+      const h = 0.55 + Math.random() * 0.12;
+      c.setHSL(h, 0.6, 0.3 + Math.random() * 0.1);
+      dC[d * 3] = c.r;
+      dC[d * 3 + 1] = c.g;
+      dC[d * 3 + 2] = c.b;
     }
-    dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPos, 3));
-    dustGeo.setAttribute('color', new THREE.BufferAttribute(dustCol, 3));
-    scene.add(
-      new THREE.Points(
-        dustGeo,
-        new THREE.PointsMaterial({
-          size: 1.1,
-          vertexColors: true,
-          sizeAttenuation: true,
-          transparent: true,
-          opacity: 0.12,
-          depthWrite: false,
-          blending: THREE.AdditiveBlending,
-        })
-      )
-    );
+    dustGeo.setAttribute('position', new THREE.BufferAttribute(dP, 3));
+    dustGeo.setAttribute('color', new THREE.BufferAttribute(dC, 3));
+    scene.add(new THREE.Points(dustGeo, new THREE.PointsMaterial({
+      size: 1.4,
+      vertexColors: true,
+      sizeAttenuation: true,
+      transparent: true,
+      opacity: 0.09,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    })));
 
-    // ─── Black hole ─────────────────────────────────────────────────
+    /* ── 7. Black hole ───────────────────────────────────────────── */
     const bhGroup = new THREE.Group();
 
     const eventHorizon = new THREE.Mesh(
-      new THREE.SphereGeometry(0.7, 48, 48),
+      new THREE.SphereGeometry(0.65, 48, 48),
       new THREE.MeshBasicMaterial({ color: 0x000000 })
     );
     bhGroup.add(eventHorizon);
 
-    const diskInner = 1.0;
-    const diskOuter = 3.8;
-    const diskGeo = new THREE.RingGeometry(diskInner, diskOuter, 128, 4);
-    const diskColors = new Float32Array(diskGeo.attributes.position.count * 3);
-    const posAttr = diskGeo.attributes.position;
-    const dColor = new THREE.Color();
-    for (let i = 0; i < posAttr.count; i++) {
-      const px = posAttr.getX(i);
-      const py = posAttr.getY(i);
-      const dist = Math.sqrt(px * px + py * py);
-      const norm = (dist - diskInner) / (diskOuter - diskInner);
-      if (norm < 0.3) {
-        dColor.setHSL(0.52, 0.95, 0.85 - norm * 1.5);
-      } else if (norm < 0.6) {
-        dColor.setHSL(0.08 + norm * 0.05, 0.9, 0.65 - norm * 0.3);
-      } else {
-        dColor.setHSL(0.02, 0.8 - norm * 0.4, 0.4 - norm * 0.25);
-      }
-      diskColors[i * 3] = dColor.r;
-      diskColors[i * 3 + 1] = dColor.g;
-      diskColors[i * 3 + 2] = dColor.b;
+    const diskIn = 0.9;
+    const diskOut = 4.0;
+    const diskGeo = new THREE.RingGeometry(diskIn, diskOut, 160, 6);
+    const diskC = new Float32Array(diskGeo.attributes.position.count * 3);
+    const dpa = diskGeo.attributes.position;
+    for (let i = 0; i < dpa.count; i++) {
+      const dist = Math.sqrt(dpa.getX(i) ** 2 + dpa.getY(i) ** 2);
+      const n = (dist - diskIn) / (diskOut - diskIn);
+      const ang = Math.atan2(dpa.getY(i), dpa.getX(i));
+      const doppler = 0.85 + Math.sin(ang) * 0.15;
+      if (n < 0.25) c.setHSL(0.53, 0.95, (0.9 - n * 2) * doppler);
+      else if (n < 0.55) c.setHSL(0.09 + n * 0.04, 0.9, (0.7 - n * 0.4) * doppler);
+      else c.setHSL(0.02, 0.75 - n * 0.3, (0.35 - n * 0.2) * doppler);
+      diskC[i * 3] = c.r;
+      diskC[i * 3 + 1] = c.g;
+      diskC[i * 3 + 2] = c.b;
     }
-    diskGeo.setAttribute('color', new THREE.BufferAttribute(diskColors, 3));
+    diskGeo.setAttribute('color', new THREE.BufferAttribute(diskC, 3));
 
-    const accretionDisk = new THREE.Mesh(
-      diskGeo,
-      new THREE.MeshBasicMaterial({
-        vertexColors: true,
-        side: THREE.DoubleSide,
-        transparent: true,
-        opacity: 0.7,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-      })
-    );
-    accretionDisk.rotation.x = -Math.PI / 2;
-    bhGroup.add(accretionDisk);
+    const accDisk = new THREE.Mesh(diskGeo, new THREE.MeshBasicMaterial({
+      vertexColors: true,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.75,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    }));
+    accDisk.rotation.x = -Math.PI / 2;
+    bhGroup.add(accDisk);
 
     const glowLayers: THREE.Mesh[] = [];
     const glowConf: [number, number, number, number][] = [
-      [0.9, 4.2, 0x00e5ff, 0.18],
-      [0.7, 5.0, 0xff6600, 0.08],
-      [0.5, 5.8, 0xff00aa, 0.04],
+      [0.8, 4.5, 0x00e5ff, 0.2],
+      [0.6, 5.2, 0xff7700, 0.09],
+      [0.4, 6.0, 0xff00aa, 0.04],
     ];
     for (const [inner, outer, color, opacity] of glowConf) {
       const ring = new THREE.Mesh(
-        new THREE.RingGeometry(inner, outer, 64),
+        new THREE.RingGeometry(inner, outer, 80),
         new THREE.MeshBasicMaterial({
-          color,
-          transparent: true,
-          opacity,
+          color, transparent: true, opacity,
           side: THREE.DoubleSide,
           blending: THREE.AdditiveBlending,
           depthWrite: false,
@@ -265,58 +414,73 @@ const SpaceScene: React.FC<SpaceSceneProps> = ({ onBlackHoleClick }) => {
     }
 
     const photonRing = new THREE.Mesh(
-      new THREE.TorusGeometry(0.85, 0.04, 16, 96),
+      new THREE.TorusGeometry(0.78, 0.035, 16, 128),
       new THREE.MeshBasicMaterial({
-        color: 0xffffff,
-        transparent: true,
-        opacity: 0.6,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
+        color: 0xffffff, transparent: true, opacity: 0.65,
+        blending: THREE.AdditiveBlending, depthWrite: false,
       })
     );
     photonRing.rotation.x = Math.PI / 2;
     bhGroup.add(photonRing);
 
+    const jetMat = new THREE.MeshBasicMaterial({
+      color: 0x44aaff, transparent: true, opacity: 0.08,
+      blending: THREE.AdditiveBlending, depthWrite: false,
+    });
+    const jetGeo = new THREE.ConeGeometry(0.6, 12, 16, 1, true);
+    const jetUp = new THREE.Mesh(jetGeo, jetMat);
+    jetUp.position.y = 6;
+    bhGroup.add(jetUp);
+    const jetDown = new THREE.Mesh(jetGeo, jetMat.clone());
+    jetDown.position.y = -6;
+    jetDown.rotation.z = Math.PI;
+    bhGroup.add(jetDown);
+
     scene.add(bhGroup);
 
-    const clickTargets: THREE.Object3D[] = [
-      eventHorizon,
-      accretionDisk,
-      photonRing,
-      ...glowLayers,
-    ];
+    const clickTargets: THREE.Object3D[] = [eventHorizon, accDisk, photonRing, ...glowLayers];
 
-    // ─── Interaction ────────────────────────────────────────────────
+    /* ── Interaction (distinguish click from drag) ───────────────── */
+    let pointerDownPos = new THREE.Vector2();
     let hovered = false;
 
-    const onPointerMove = (event: PointerEvent) => {
+    const updatePointer = (event: PointerEvent) => {
       const rect = renderer.domElement.getBoundingClientRect();
       pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
       pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    };
+
+    const onPointerMove = (event: PointerEvent) => {
+      updatePointer(event);
       raycaster.setFromCamera(pointer, camera);
-      const hits = raycaster.intersectObjects(clickTargets, false);
-      const over = hits.length > 0;
+      const over = raycaster.intersectObjects(clickTargets, false).length > 0;
       if (over !== hovered) {
         hovered = over;
-        renderer.domElement.style.cursor = over ? 'pointer' : 'default';
+        renderer.domElement.style.cursor = over ? 'pointer' : 'grab';
       }
     };
 
     const onPointerDown = (event: PointerEvent) => {
-      const rect = renderer.domElement.getBoundingClientRect();
-      pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-      pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+      pointerDownPos.set(event.clientX, event.clientY);
+    };
+
+    const onPointerUp = (event: PointerEvent) => {
+      const dx = event.clientX - pointerDownPos.x;
+      const dy = event.clientY - pointerDownPos.y;
+      if (Math.sqrt(dx * dx + dy * dy) > 5) return;
+      updatePointer(event);
       raycaster.setFromCamera(pointer, camera);
-      const hits = raycaster.intersectObjects(clickTargets, false);
-      if (hits.length > 0 && clickRef.current) {
+      if (raycaster.intersectObjects(clickTargets, false).length > 0 && clickRef.current) {
         clickRef.current();
       }
     };
 
+    renderer.domElement.style.cursor = 'grab';
     renderer.domElement.addEventListener('pointermove', onPointerMove);
     renderer.domElement.addEventListener('pointerdown', onPointerDown);
+    renderer.domElement.addEventListener('pointerup', onPointerUp);
 
-    // ─── Resize ─────────────────────────────────────────────────────
+    /* ── Resize ──────────────────────────────────────────────────── */
     const onResize = () => {
       if (!mountRef.current) return;
       const nw = mountRef.current.clientWidth;
@@ -327,45 +491,71 @@ const SpaceScene: React.FC<SpaceSceneProps> = ({ onBlackHoleClick }) => {
     };
     window.addEventListener('resize', onResize);
 
-    // ─── Animate ────────────────────────────────────────────────────
+    /* ── Animate ─────────────────────────────────────────────────── */
     let raf = 0;
     const animate = () => {
       raf = requestAnimationFrame(animate);
       const dt = Math.min(clock.getDelta(), 0.05);
       const t = clock.elapsedTime;
 
-      galaxy.rotation.y += 0.012 * dt;
+      controls.update();
 
-      accretionDisk.rotation.z += 0.6 * dt;
-      photonRing.rotation.z -= 1.2 * dt;
+      galaxy.rotation.y += 0.01 * dt;
 
-      const pulse = 0.85 + Math.sin(t * 1.8) * 0.15;
+      accDisk.rotation.z += 0.55 * dt;
+      photonRing.rotation.z -= 1.0 * dt;
+
+      const pulse = 0.85 + Math.sin(t * 1.6) * 0.15;
       glowLayers.forEach((g, i) => {
-        const m = g.material as THREE.MeshBasicMaterial;
-        m.opacity = glowConf[i][3] * pulse + Math.sin(t * (1.2 + i * 0.4)) * 0.015;
+        (g.material as THREE.MeshBasicMaterial).opacity =
+          glowConf[i][3] * pulse + Math.sin(t * (1.1 + i * 0.35)) * 0.015;
       });
-      (photonRing.material as THREE.MeshBasicMaterial).opacity =
-        0.5 + Math.sin(t * 3) * 0.15;
+      (photonRing.material as THREE.MeshBasicMaterial).opacity = 0.55 + Math.sin(t * 2.5) * 0.15;
 
-      const bhScale = 1 + (hovered ? Math.sin(t * 4) * 0.04 : 0);
-      bhGroup.scale.setScalar(bhScale);
+      const jOpacity = 0.04 + Math.sin(t * 1.2) * 0.03;
+      (jetUp.material as THREE.MeshBasicMaterial).opacity = jOpacity;
+      (jetDown.material as THREE.MeshBasicMaterial).opacity = jOpacity;
+
+      const bhS = 1 + (hovered ? Math.sin(t * 4) * 0.04 : 0);
+      bhGroup.scale.setScalar(bhS);
+
+      pulsarData.forEach((p, i) => {
+        const freq = 4 + i * 1.5;
+        const s = 0.7 + Math.abs(Math.sin(t * freq)) * 0.6;
+        p.mesh.scale.setScalar(s);
+        (p.mesh.material as THREE.MeshBasicMaterial).opacity = 0.6 + Math.abs(Math.sin(t * freq)) * 0.4;
+        const bOp = 0.08 + Math.abs(Math.sin(t * freq + 0.2)) * 0.2;
+        (p.beam1.material as THREE.MeshBasicMaterial).opacity = bOp;
+        (p.beam2.material as THREE.MeshBasicMaterial).opacity = bOp;
+        p.beam1.rotation.y += 2.5 * dt;
+        p.beam2.rotation.y += 2.5 * dt;
+      });
+
+      distGalGroup.children.forEach((child, i) => {
+        child.rotation.y += (0.003 + i * 0.0003) * dt;
+      });
 
       renderer.render(scene, camera);
     };
     animate();
 
-    // ─── Cleanup ────────────────────────────────────────────────────
+    /* ── Cleanup ──────────────────────────────────────────────────── */
     return () => {
       cancelAnimationFrame(raf);
+      controls.dispose();
       window.removeEventListener('resize', onResize);
       renderer.domElement.removeEventListener('pointermove', onPointerMove);
       renderer.domElement.removeEventListener('pointerdown', onPointerDown);
+      renderer.domElement.removeEventListener('pointerup', onPointerUp);
       renderer.dispose();
-      galaxyGeo.dispose();
-      galaxyMat.dispose();
-      bgGeo.dispose();
-      dustGeo.dispose();
-      diskGeo.dispose();
+      scene.traverse((obj) => {
+        if (obj instanceof THREE.Mesh || obj instanceof THREE.Points) {
+          obj.geometry.dispose();
+          const mat = obj.material;
+          if (Array.isArray(mat)) mat.forEach((m) => m.dispose());
+          else mat.dispose();
+        }
+      });
       if (mount.contains(renderer.domElement)) {
         mount.removeChild(renderer.domElement);
       }
@@ -375,12 +565,7 @@ const SpaceScene: React.FC<SpaceSceneProps> = ({ onBlackHoleClick }) => {
   return (
     <div
       ref={mountRef}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        width: '100vw',
-        height: '100vh',
-      }}
+      style={{ position: 'fixed', inset: 0, width: '100vw', height: '100vh' }}
     />
   );
 };

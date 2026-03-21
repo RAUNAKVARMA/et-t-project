@@ -1,17 +1,19 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from typing import List, Optional
+from datetime import datetime, timezone
 import os
 import uuid
-from datetime import datetime
+from typing import List, Optional
+
 from dotenv import load_dotenv
+from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
 
 load_dotenv()
 
+from app.document_parser import extract_text_from_bytes
+from app.knowledge_graph import KnowledgeGraphBuilder
 from app.rag_engine import RAGEngine
 from app.vector_store import VectorStore
-from app.knowledge_graph import KnowledgeGraphBuilder
 
 app = FastAPI(title="Cosmic RAG API")
 
@@ -23,30 +25,125 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+ALLOWED_EXTENSIONS = {".pdf", ".docx", ".txt", ".md", ".csv"}
+
 vector_store = VectorStore()
 knowledge_graph = KnowledgeGraphBuilder()
 rag_engine = RAGEngine(vector_store, knowledge_graph)
 
+
 class ChatRequest(BaseModel):
-    message: str
+    message: str = Field(..., min_length=1)
+
 
 class ChatResponse(BaseModel):
     answer: str
     sources: Optional[List[dict]] = None
+    timestamp: str
+
+
+def _utc_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
 
 @app.post("/chat", response_model=ChatResponse)
-def chat(request: ChatRequest):
-    answer, sources = rag_engine.answer_query(request.message)
-    return ChatResponse(answer=answer, sources=sources)
+def chat(request: ChatRequest) -> ChatResponse:
+    try:
+        answer, sources = rag_engine.answer_query(request.message)
+        return ChatResponse(answer=answer, sources=sources, timestamp=_utc_iso())
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="Unable to complete chat request.") from exc
+
+
+@app.get("/documents")
+def list_documents() -> List[dict]:
+    """Return metadata for documents currently in the knowledge graph."""
+    out: List[dict] = []
+    for doc_id, meta in knowledge_graph.documents.items():
+        chunks = meta.get("chunks") or []
+        out.append(
+            {
+                "id": doc_id,
+                "name": meta.get("name", doc_id),
+                "type": meta.get("file_type", "unknown"),
+                "chunks": len(chunks),
+            }
+        )
+    return out
+
 
 @app.post("/upload")
-def upload_document(file: UploadFile = File(...)):
+async def upload_document(file: UploadFile = File(...)) -> dict:
+    filename = file.filename or "unnamed"
+    ext = ""
+    if "." in filename:
+        ext = "." + filename.rsplit(".", 1)[-1].lower()
+    if ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid file type. Allowed: PDF, DOCX, TXT, MD, CSV.",
+        )
     try:
-        content = file.file.read().decode('utf-8')
-        doc_id = str(uuid.uuid4())
-        chunks = rag_engine.chunk_document(content)
-        vector_store.add_vectors(rag_engine.embed_chunks(chunks), [{'doc_id': doc_id, 'chunk_index': i} for i in range(len(chunks))], chunks)
-        knowledge_graph.add_document(doc_id, content, chunks)
-        return {"status": "success", "doc_id": doc_id, "chunks": len(chunks)}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raw = await file.read()
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="Could not read uploaded file.") from exc
+
+    if len(raw) == 0:
+        raise HTTPException(status_code=400, detail="File is empty.")
+    if len(raw) > MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"File too large. Maximum size is {MAX_UPLOAD_BYTES // (1024 * 1024)} MB.",
+        )
+
+    try:
+        content = extract_text_from_bytes(filename, raw)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=422,
+            detail="Could not parse document. Check format and encoding.",
+        ) from exc
+
+    if not content.strip():
+        raise HTTPException(status_code=422, detail="No text could be extracted from this file.")
+
+    doc_id = str(uuid.uuid4())
+    chunks = rag_engine.chunk_document(content)
+    file_type = ext.lstrip(".")
+    meta_rows = [
+        {
+            "doc_id": doc_id,
+            "chunk_index": i,
+            "document": filename,
+        }
+        for i in range(len(chunks))
+    ]
+    try:
+        vector_store.add_vectors(
+            rag_engine.embed_chunks(chunks),
+            meta_rows,
+            chunks,
+        )
+        knowledge_graph.add_document(doc_id, content, chunks, name=filename, file_type=file_type)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="Failed to index document.") from exc
+
+    return {
+        "status": "success",
+        "doc_id": doc_id,
+        "chunks": len(chunks),
+        "name": filename,
+        "type": file_type,
+    }
+
+
+@app.get("/knowledge-graph")
+def knowledge_graph_snapshot() -> dict:
+    """Lightweight summary for debugging or UI."""
+    return {
+        "document_count": len(knowledge_graph.documents),
+        "entity_count": len(knowledge_graph.entities),
+    }

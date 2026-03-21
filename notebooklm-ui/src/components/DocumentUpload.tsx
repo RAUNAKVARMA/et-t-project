@@ -2,15 +2,6 @@
 
 import React, { useState, useRef } from 'react';
 
-interface Document {
-  id: string;
-  name: string;
-  type: string;
-  size: number;
-  chunks: number;
-  uploaded_at: string;
-}
-
 interface DocumentUploadProps {
   onFileUpload: (files: FileList) => void;
 }
@@ -56,11 +47,30 @@ export default function DocumentUpload({ onFileUpload }: DocumentUploadProps) {
         ref={fileInputRef}
         type="file"
         multiple
+        accept=".pdf,.docx,.txt,.md,.csv,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/csv"
         style={{ display: 'none' }}
         onChange={handleFileChange}
+        aria-label="Choose documents to upload"
       />
       <div style={{ textAlign: 'center' }}>
-        <p>Drag and drop documents here, or <span style={{ color: '#1a237e', cursor: 'pointer' }} onClick={() => fileInputRef.current?.click()}>browse</span> to upload.</p>
+        <p>
+          Drag and drop PDF, DOCX, TXT, MD, or CSV here, or{' '}
+          <span
+            style={{ color: '#00e5ff', cursor: 'pointer' }}
+            onClick={() => fileInputRef.current?.click()}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                fileInputRef.current?.click();
+              }
+            }}
+            role="button"
+            tabIndex={0}
+          >
+            browse
+          </span>{' '}
+          to upload.
+        </p>
       </div>
     </div>
   );

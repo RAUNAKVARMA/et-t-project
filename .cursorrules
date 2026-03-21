@@ -1,0 +1,44 @@
+# .cursorrules
+validation:
+  typescript_check: required
+  build_check: skip # Windows EPERM / .next file lock in agent environments
+
+git_workflow:
+  pre_commit:
+    - npx tsc --noEmit
+  skip:
+    - npm run build
+
+ai:
+  auto_commit: true
+  auto_push: true
+  commit_format: "[type]: [description]"
+
+code_style:
+  typescript:
+    - functional_components
+    - strict_types
+    - use_client_directive
+
+  python:
+    - type_hints
+    - docstrings
+    - pep8
+
+  formatting:
+    - prettier (frontend)
+    - black (backend)
+
+quality_gates:
+  - no_console_logs
+  - no_any_types
+  - error_handling_required
+  - type_safety_required
+
+auto_actions:
+  after_code_change:
+    - format_code
+    - check_types
+    - git_add
+    - git_commit
+    - git_push

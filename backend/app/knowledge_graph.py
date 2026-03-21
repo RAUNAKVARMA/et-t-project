@@ -9,11 +9,20 @@ class KnowledgeGraphBuilder:
         self.relationships = []  # (entity1, entity2, weight)
         self.entity_frequencies = Counter()
 
-    def add_document(self, doc_id: str, text: str, chunks: List[str]):
+    def add_document(
+        self,
+        doc_id: str,
+        text: str,
+        chunks: List[str],
+        name: str = "",
+        file_type: str = "txt",
+    ):
         self.documents[doc_id] = {
             'text': text,
             'chunks': chunks,
-            'entities': set()
+            'entities': set(),
+            'name': name or doc_id,
+            'file_type': file_type,
         }
         entities = self._extract_entities(text)
         for entity in entities:

@@ -58,7 +58,7 @@ class RAGEngine:
                         {"role": "system", "content": "You are a cosmic assistant."},
                         {"role": "user", "content": f"{context}\n\n{query}"},
                     ],
-                    model="mixtral-8x7b-32768",
+                    model="llama-3.3-70b-versatile",
                     temperature=0.7,
                     max_tokens=512,
                 )
@@ -66,10 +66,9 @@ class RAGEngine:
             except Exception as exc:
                 print(f"Groq request failed: {exc}")
                 answer = (
-                    f"[Local fallback] {query}\n\n"
-                    f"No indexed context yet or the AI service is unavailable. "
-                    f"Upload documents and try again.\n"
-                    f"Context preview: {context[:400]}{'...' if len(context) > 400 else ''}"
+                    f"AI service error: {type(exc).__name__}: {exc}\n\n"
+                    f"The query was received but the AI could not generate a response. "
+                    f"This may be a temporary issue — please try again."
                 )
         else:
             answer = f"[Template] Answer for: {query}\nContext: {context[:200]}..."

@@ -438,6 +438,95 @@ const SpaceScene: React.FC<SpaceSceneProps> = ({ onBlackHoleClick }) => {
 
     scene.add(bhGroup);
 
+    /* ── 8. Solar system (in a spiral arm, ~2/3 from center) ─────── */
+    const solarGroup = new THREE.Group();
+    const solarArmIdx = 2;
+    const solarT = 0.65 * GALAXY_R;
+    const solarArmOff = (solarArmIdx / ARM_COUNT) * Math.PI * 2;
+    const solarAngle = solarArmOff + (solarT / GALAXY_R) * (TWIST / GALAXY_R) * GALAXY_R;
+    solarGroup.position.set(
+      Math.cos(solarAngle) * solarT,
+      0.1,
+      Math.sin(solarAngle) * solarT
+    );
+
+    const sunGeo = new THREE.SphereGeometry(0.18, 24, 24);
+    const sunMat = new THREE.MeshBasicMaterial({ color: 0xffdd44 });
+    const sun = new THREE.Mesh(sunGeo, sunMat);
+    solarGroup.add(sun);
+
+    const sunGlow = new THREE.Mesh(
+      new THREE.SphereGeometry(0.4, 16, 16),
+      new THREE.MeshBasicMaterial({
+        color: 0xffaa00, transparent: true, opacity: 0.15,
+        blending: THREE.AdditiveBlending, depthWrite: false,
+      })
+    );
+    solarGroup.add(sunGlow);
+
+    const planetData: { mesh: THREE.Mesh; dist: number; speed: number; angle: number }[] = [];
+    const planets: [number, number, number, number][] = [
+      [0.04, 0.45, 4.1, 0x999999],   // Mercury
+      [0.055, 0.65, 3.2, 0xe8cfa0],  // Venus
+      [0.06, 0.85, 2.6, 0x4488ff],   // Earth
+      [0.05, 1.1, 2.0, 0xcc4422],    // Mars
+      [0.12, 1.55, 1.1, 0xddaa66],   // Jupiter
+      [0.1, 1.95, 0.8, 0xccbb77],    // Saturn
+      [0.07, 2.35, 0.55, 0x88ccdd],  // Uranus
+      [0.065, 2.7, 0.4, 0x3355bb],   // Neptune
+    ];
+
+    for (const [radius, dist, speed, color] of planets) {
+      const orbitGeo = new THREE.BufferGeometry();
+      const orbitPts = 64;
+      const orbitArr = new Float32Array(orbitPts * 3);
+      for (let o = 0; o < orbitPts; o++) {
+        const a = (o / orbitPts) * Math.PI * 2;
+        orbitArr[o * 3] = Math.cos(a) * dist;
+        orbitArr[o * 3 + 1] = 0;
+        orbitArr[o * 3 + 2] = Math.sin(a) * dist;
+      }
+      orbitGeo.setAttribute('position', new THREE.BufferAttribute(orbitArr, 3));
+      const orbitLine = new THREE.LineLoop(
+        orbitGeo,
+        new THREE.LineBasicMaterial({
+          color: 0xffffff, transparent: true, opacity: 0.08, depthWrite: false,
+        })
+      );
+      solarGroup.add(orbitLine);
+
+      const pMesh = new THREE.Mesh(
+        new THREE.SphereGeometry(radius, 16, 16),
+        new THREE.MeshBasicMaterial({ color })
+      );
+      const startAngle = Math.random() * Math.PI * 2;
+      pMesh.position.set(Math.cos(startAngle) * dist, 0, Math.sin(startAngle) * dist);
+      solarGroup.add(pMesh);
+      planetData.push({ mesh: pMesh, dist, speed, angle: startAngle });
+    }
+
+    const saturnRing = new THREE.Mesh(
+      new THREE.RingGeometry(0.14, 0.22, 32),
+      new THREE.MeshBasicMaterial({
+        color: 0xccbb77, side: THREE.DoubleSide, transparent: true, opacity: 0.5,
+        depthWrite: false,
+      })
+    );
+    saturnRing.rotation.x = -Math.PI / 2.5;
+    planetData[5].mesh.add(saturnRing);
+
+    const solarLabel = new THREE.Mesh(
+      new THREE.RingGeometry(3.2, 3.4, 48),
+      new THREE.MeshBasicMaterial({
+        color: 0x00e5ff, transparent: true, opacity: 0.12,
+        side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false,
+      })
+    );
+    solarLabel.rotation.x = -Math.PI / 2;
+    solarGroup.add(solarLabel);
+
+    scene.add(solarGroup);
+
     const clickTargets: THREE.Object3D[] = [eventHorizon, accDisk, photonRing, ...glowLayers];
 
     /* ── Interaction (distinguish click from drag) ───────────────── */
@@ -534,6 +623,13 @@ const SpaceScene: React.FC<SpaceSceneProps> = ({ onBlackHoleClick }) => {
       distGalGroup.children.forEach((child, i) => {
         child.rotation.y += (0.003 + i * 0.0003) * dt;
       });
+
+      planetData.forEach((p) => {
+        p.angle += p.speed * dt;
+        p.mesh.position.set(Math.cos(p.angle) * p.dist, 0, Math.sin(p.angle) * p.dist);
+      });
+      sun.rotation.y += 0.3 * dt;
+      (sunGlow.material as THREE.MeshBasicMaterial).opacity = 0.12 + Math.sin(t * 2) * 0.04;
 
       renderer.render(scene, camera);
     };

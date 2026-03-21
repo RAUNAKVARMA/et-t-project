@@ -224,18 +224,31 @@ const ChatInterface: React.FC = () => {
                 {formatRelativeTime(msg.timestamp)}
               </span>
             </div>
-            <div className={styles.body}>{msg.content}</div>
+            <div className={styles.body}>
+              {msg.content.split('\n').map((line, li) => (
+                <span key={li}>
+                  {line}
+                  {li < msg.content.split('\n').length - 1 && <br />}
+                </span>
+              ))}
+            </div>
             {msg.sources && msg.sources.length > 0 && (
-              <div className={styles.sources}>
-                Sources:
+              <details className={styles.sources}>
+                <summary className={styles.sourcesSummary}>
+                  {msg.sources.length} source{msg.sources.length > 1 ? 's' : ''} referenced
+                </summary>
                 <ul>
                   {msg.sources.map((src, i) => (
-                    <li key={i}>
-                      {(src.document ?? 'Document') + (typeof src.score === 'number' ? ` (score: ${src.score.toFixed(2)})` : '') + ` chunk: ${src.chunk_index}`}
+                    <li key={i} className={styles.sourceItem}>
+                      <span className={styles.sourceDoc}>{src.document ?? 'Document'}</span>
+                      <span className={styles.sourceMeta}>
+                        {typeof src.score === 'number' && `score ${src.score.toFixed(2)} · `}
+                        chunk {src.chunk_index}
+                      </span>
                     </li>
                   ))}
                 </ul>
-              </div>
+              </details>
             )}
           </div>
         ))}

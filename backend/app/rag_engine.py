@@ -23,9 +23,9 @@ class RAGEngine:
             api_key = os.getenv("GROQ_API_KEY")
             if api_key:
                 self.groq_client = Groq(api_key=api_key)
-                print("✅ Groq AI initialized successfully (FREE)")
+                print("Groq AI initialized successfully.")
             else:
-                print("⚠️ Warning: GROQ_API_KEY not found in environment variables")
+                print("Warning: GROQ_API_KEY not found in environment variables.")
 
     def chunk_document(self, text: str) -> List[str]:
         chunks = []
@@ -46,13 +46,25 @@ class RAGEngine:
         sources = [r['metadata'] for r in results]
         answer = ""
         if self.groq_client:
-            completion = self.groq_client.chat(
-                messages=[{"role": "system", "content": "You are a cosmic assistant."}, {"role": "user", "content": f"{context}\n\n{query}"}],
-                model="mixtral-8x7b-32768",
-                temperature=0.7,
-                max_tokens=512
-            )
-            answer = completion.choices[0].message.content
+            try:
+                completion = self.groq_client.chat.completions.create(
+                    messages=[
+                        {"role": "system", "content": "You are a cosmic assistant."},
+                        {"role": "user", "content": f"{context}\n\n{query}"},
+                    ],
+                    model="mixtral-8x7b-32768",
+                    temperature=0.7,
+                    max_tokens=512,
+                )
+                answer = completion.choices[0].message.content or ""
+            except Exception as exc:
+                print(f"Groq request failed: {exc}")
+                answer = (
+                    f"[Local fallback] {query}\n\n"
+                    f"No indexed context yet or the AI service is unavailable. "
+                    f"Upload documents and try again.\n"
+                    f"Context preview: {context[:400]}{'...' if len(context) > 400 else ''}"
+                )
         else:
             answer = f"[Template] Answer for: {query}\nContext: {context[:200]}..."
         return answer, sources

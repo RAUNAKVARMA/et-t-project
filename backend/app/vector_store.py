@@ -45,10 +45,13 @@ class VectorStore:
 
     def search(self, query_vector: np.ndarray, top_k: int = 5):
         """Search for similar vectors"""
-        D, I = self.index.search(query_vector, top_k)
+        if self.index.ntotal == 0:
+            return []
+        k = min(top_k, self.index.ntotal)
+        D, I = self.index.search(query_vector, k)
         results = []
         for idx, dist in zip(I[0], D[0]):
-            if idx < len(self.chunks_metadata):
+            if 0 <= idx < len(self.chunks_metadata):
                 results.append({
                     'metadata': self.chunks_metadata[idx],
                     'text': self.chunk_texts[idx],

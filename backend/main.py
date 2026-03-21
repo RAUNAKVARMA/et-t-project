@@ -17,9 +17,14 @@ from app.vector_store import VectorStore
 
 app = FastAPI(title="Cosmic RAG API")
 
+ALLOWED_ORIGINS = os.getenv(
+    "ALLOWED_ORIGINS",
+    "http://localhost:3000,https://et-t-project.vercel.app",
+).split(",")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -45,6 +50,11 @@ class ChatResponse(BaseModel):
 
 def _utc_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+@app.get("/health")
+def health_check() -> dict:
+    return {"status": "ok"}
 
 
 @app.post("/chat", response_model=ChatResponse)

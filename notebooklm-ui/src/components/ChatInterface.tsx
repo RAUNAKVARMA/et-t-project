@@ -231,7 +231,7 @@ const ChatInterface: React.FC = () => {
                 <ul>
                   {msg.sources.map((src, i) => (
                     <li key={i}>
-                      {(src.document ?? 'Document') + ` (score: ${src.score.toFixed(2)}, chunk: ${src.chunk_index})`}
+                      {(src.document ?? 'Document') + (typeof src.score === 'number' ? ` (score: ${src.score.toFixed(2)})` : '') + ` chunk: ${src.chunk_index}`}
                     </li>
                   ))}
                 </ul>

@@ -2,7 +2,6 @@
 
 import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 
 interface SpaceSceneProps {
   onBlackHoleClick?: () => void;
@@ -38,7 +37,10 @@ const SpaceScene: React.FC<SpaceSceneProps> = ({ onBlackHoleClick }) => {
   useEffect(() => {
     const mount = mountRef.current;
     if (!mount) return;
+    let disposed = false;
+    let raf = 0;
 
+    (async () => {
     const W = mount.clientWidth;
     const H = Math.max(mount.clientHeight, 1);
 
@@ -60,7 +62,8 @@ const SpaceScene: React.FC<SpaceSceneProps> = ({ onBlackHoleClick }) => {
     const camera = new THREE.PerspectiveCamera(50, W / H, 0.1, 2000);
     camera.position.set(0, 22, 32);
 
-    /* orbit controls — zoom & pan */
+    /* orbit controls — zoom & pan (dynamic import to avoid SSR crash) */
+    const { OrbitControls } = await import('three/examples/jsm/controls/OrbitControls.js');
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.06;
@@ -492,8 +495,8 @@ const SpaceScene: React.FC<SpaceSceneProps> = ({ onBlackHoleClick }) => {
     window.addEventListener('resize', onResize);
 
     /* ── Animate ─────────────────────────────────────────────────── */
-    let raf = 0;
     const animate = () => {
+      if (disposed) return;
       raf = requestAnimationFrame(animate);
       const dt = Math.min(clock.getDelta(), 0.05);
       const t = clock.elapsedTime;
@@ -539,25 +542,14 @@ const SpaceScene: React.FC<SpaceSceneProps> = ({ onBlackHoleClick }) => {
     };
     animate();
 
-    /* ── Cleanup ──────────────────────────────────────────────────── */
+    })(); // end async IIFE
+
     return () => {
+      disposed = true;
       cancelAnimationFrame(raf);
-      controls.dispose();
-      window.removeEventListener('resize', onResize);
-      renderer.domElement.removeEventListener('pointermove', onPointerMove);
-      renderer.domElement.removeEventListener('pointerdown', onPointerDown);
-      renderer.domElement.removeEventListener('pointerup', onPointerUp);
-      renderer.dispose();
-      scene.traverse((obj) => {
-        if (obj instanceof THREE.Mesh || obj instanceof THREE.Points) {
-          obj.geometry.dispose();
-          const mat = obj.material;
-          if (Array.isArray(mat)) mat.forEach((m) => m.dispose());
-          else mat.dispose();
-        }
-      });
-      if (mount.contains(renderer.domElement)) {
-        mount.removeChild(renderer.domElement);
+      const el = mount.querySelector('canvas');
+      if (el) {
+        mount.removeChild(el);
       }
     };
   }, []);

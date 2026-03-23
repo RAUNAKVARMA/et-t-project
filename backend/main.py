@@ -30,6 +30,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+#deployment for fastapi
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 ALLOWED_EXTENSIONS = {".pdf", ".docx", ".txt", ".md", ".csv"}
 

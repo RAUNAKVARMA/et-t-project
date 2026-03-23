@@ -24,6 +24,8 @@ The ET-T Project is designed with:
 
 📈 Scalable system design
 
+System Archtiecture 
+
 🏗️ Architecture
 Client → API Layer → Business Logic → Database
 

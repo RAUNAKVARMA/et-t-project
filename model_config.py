@@ -13,6 +13,8 @@ class SimpleLM(nn.Module):
         out = self.fc(out)
         return out
 
+#embed input implementation
+
 # Hyperparameters
 VOCAB_SIZE = 10000
 EMBED_DIM = 128

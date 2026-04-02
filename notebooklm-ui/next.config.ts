@@ -9,8 +9,14 @@ const nextConfig: NextConfig = {
   },
   // Fresh output dir avoids EPERM on a locked `.next\dev\logs` (OneDrive / old dev processes).
   distDir: 'next-build',
-  // Proxy API to FastAPI so the browser uses same origin (no CORS issues for /upload, /documents, /chat).
+  // Local dev only: proxy to FastAPI on your machine. On Vercel, set NEXT_PUBLIC_API_URL to your hosted API (Render/Railway).
   async rewrites() {
+    if (process.env.VERCEL) {
+      return [];
+    }
+    if (process.env.NEXT_PUBLIC_API_URL?.trim() || process.env.NEXT_PUBLIC_BACKEND_URL?.trim()) {
+      return [];
+    }
     return [
       {
         source: '/api/rag/:path*',

@@ -133,3 +133,16 @@ Recruiter-friendly structure
 Professional badges & formatting
 
 Highlights engineering thinking, not just code
+
+---
+
+## Cosmic RAG (Vercel + Render)
+
+The Next.js app on Vercel **cannot** use the local dev proxy (`localhost:8000`). Point the UI at your deployed FastAPI.
+
+1. **Vercel** → Project → **Settings** → **Environment Variables** → add:
+   - `NEXT_PUBLIC_API_URL` = your Render API base URL, e.g. `https://cosmic-rag-api.onrender.com` (no trailing slash)
+2. **Redeploy** the frontend after saving.
+3. **Render** (backend): set `ALLOWED_ORIGINS` to include your Vercel URL, e.g. `https://your-app.vercel.app` (comma-separated if multiple), or rely on defaults in `backend/main.py` for known `*.vercel.app` preview URLs.
+4. **Groq**: set `GROQ_API_KEY` in Render environment variables (not in the repo).
+

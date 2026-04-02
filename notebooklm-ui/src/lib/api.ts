@@ -10,6 +10,8 @@ export function getApiBaseUrl(): string {
   if (fromEnv) {
     return fromEnv.replace(/\/$/, '');
   }
+  // Local dev: Next rewrites /api/rag → http://127.0.0.1:8000 (see next.config.ts).
+  // Vercel: set NEXT_PUBLIC_API_URL in Project → Environment Variables to your Render API URL.
   return '/api/rag';
 }
 

@@ -7,8 +7,7 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: path.resolve(process.cwd()),
   },
-  // Fresh output dir avoids EPERM on a locked `.next\dev\logs` (OneDrive / old dev processes).
-  distDir: 'next-build',
+  // Use default distDir `.next` so Vercel finds routes-manifest.json. If Windows EPERM on .next, delete .next and retry.
   // Local dev only: proxy to FastAPI on your machine. On Vercel, set NEXT_PUBLIC_API_URL to your hosted API (Render/Railway).
   async rewrites() {
     if (process.env.VERCEL) {

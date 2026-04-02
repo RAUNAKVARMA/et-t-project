@@ -1,18 +1,5 @@
 import './globals.css';
 import type { Metadata } from 'next';
-import { DM_Sans, Syne } from 'next/font/google';
-
-const dmSans = DM_Sans({
-  subsets: ['latin'],
-  variable: '--font-sans',
-  display: 'swap',
-});
-
-const syne = Syne({
-  subsets: ['latin'],
-  variable: '--font-display',
-  display: 'swap',
-});
 
 export const metadata: Metadata = {
   title: 'Cosmic RAG App',
@@ -21,7 +8,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${dmSans.variable} ${syne.variable}`}>
+    <html lang="en">
       <body>{children}</body>
     </html>
   );

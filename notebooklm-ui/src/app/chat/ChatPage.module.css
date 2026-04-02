@@ -135,7 +135,7 @@
 }
 
 .navTitle {
-  font-family: var(--font-display, system-ui), sans-serif;
+  font-family: system-ui, sans-serif;
   font-size: clamp(0.95rem, 2.5vw, 1.15rem);
   font-weight: 700;
   letter-spacing: 0.06em;

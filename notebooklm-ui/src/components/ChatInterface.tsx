@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import DocumentUpload from './DocumentUpload';
 import FileTypeIcon from './FileTypeIcon';
-import { getApiBaseUrl } from '@/lib/api';
+import { getApiBaseUrl, parseApiErrorResponse } from '@/lib/api';
 import { formatRelativeTime } from '@/lib/time';
 import styles from './ChatInterface.module.css';
 
@@ -175,12 +175,7 @@ const ChatInterface: React.FC = () => {
           body: form,
         });
         if (!res.ok) {
-          const errBody = (await res.json().catch(() => ({}))) as { detail?: unknown };
-          let detail = 'Upload failed.';
-          if (errBody.detail !== undefined) {
-            const d = errBody.detail;
-            detail = Array.isArray(d) ? d.map((x) => String(x)).join(' ') : String(d);
-          }
+          const detail = await parseApiErrorResponse(res);
           setDocError(detail);
           continue;
         }

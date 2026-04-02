@@ -3,12 +3,15 @@ import os
 import uuid
 from typing import List, Optional
 
+from pathlib import Path
+
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-load_dotenv()
+# Always load .env next to this file (works even if uvicorn cwd is elsewhere).
+load_dotenv(Path(__file__).resolve().parent / ".env")
 
 from app.document_parser import extract_text_from_bytes
 from app.knowledge_graph import KnowledgeGraphBuilder
@@ -17,10 +20,16 @@ from app.vector_store import VectorStore
 
 app = FastAPI(title="Cosmic RAG API")
 
-ALLOWED_ORIGINS = os.getenv(
-    "ALLOWED_ORIGINS",
-    "http://localhost:3000,https://et-t-project.vercel.app",
-).split(",")
+ALLOWED_ORIGINS = [
+    o.strip()
+    for o in os.getenv(
+        "ALLOWED_ORIGINS",
+        "http://localhost:3000,http://localhost:3001,http://localhost:3002,http://localhost:3003,"
+        "http://127.0.0.1:3000,http://127.0.0.1:3001,http://127.0.0.1:3002,http://127.0.0.1:3003,"
+        "https://et-t-project.vercel.app",
+    ).split(",")
+    if o.strip()
+]
 
 app.add_middleware(
     CORSMiddleware,
@@ -140,7 +149,11 @@ async def upload_document(file: UploadFile = File(...)) -> dict:
         )
         knowledge_graph.add_document(doc_id, content, chunks, name=filename, file_type=file_type)
     except Exception as exc:
-        raise HTTPException(status_code=500, detail="Failed to index document.") from exc
+        msg = str(exc).strip() or type(exc).__name__
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to index document: {msg}",
+        ) from exc
 
     return {
         "status": "success",

@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useRef } from 'react';
-import styles from './DocumentUpload.module.css';
 
 interface DocumentUploadProps {
   onFileUpload: (files: FileList) => void;
@@ -38,11 +37,19 @@ export default function DocumentUpload({ onFileUpload }: DocumentUploadProps) {
 
   return (
     <div
-      className={`${styles.zone} ${dragActive ? styles.zoneActive : ''}`}
       onDragEnter={handleDrag}
       onDragOver={handleDrag}
       onDragLeave={handleDrag}
       onDrop={handleDrop}
+      style={{
+        border: dragActive ? '2px solid #1a237e' : '2px dashed #aaa',
+        padding: 24,
+        borderRadius: 8,
+        background: '#222',
+        color: '#fff',
+        margin: '2rem auto',
+        maxWidth: 600,
+      }}
     >
       <input
         ref={fileInputRef}
@@ -53,24 +60,26 @@ export default function DocumentUpload({ onFileUpload }: DocumentUploadProps) {
         onChange={handleFileChange}
         aria-label="Choose documents to upload"
       />
-      <p style={{ margin: 0 }}>
-        Drag and drop PDF, DOCX, TXT, MD, or CSV here, or{' '}
-        <span
-          className={styles.browse}
-          onClick={() => fileInputRef.current?.click()}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              fileInputRef.current?.click();
-            }
-          }}
-          role="button"
-          tabIndex={0}
-        >
-          browse
-        </span>{' '}
-        to upload.
-      </p>
+      <div style={{ textAlign: 'center' }}>
+        <p>
+          Drag and drop PDF, DOCX, TXT, MD, or CSV here, or{' '}
+          <span
+            style={{ color: '#00e5ff', cursor: 'pointer' }}
+            onClick={() => fileInputRef.current?.click()}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                fileInputRef.current?.click();
+              }
+            }}
+            role="button"
+            tabIndex={0}
+          >
+            browse
+          </span>{' '}
+          to upload.
+        </p>
+      </div>
     </div>
   );
 }

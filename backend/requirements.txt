@@ -1,7 +1,9 @@
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
 python-multipart==0.0.6
-pydantic==2.5.0
+# Use a recent 2.x so wheels exist for newer Python (avoids long pydantic-core builds).
+pydantic>=2.10.0,<3
+# Optional on some setups (e.g. Python 3.14 on Windows may need Rust). App falls back to pseudo-embeddings if missing.
 fastembed>=0.3.0,<1.0.0
 faiss-cpu>=1.10.0,<2.0.0
 PyPDF2==3.0.1

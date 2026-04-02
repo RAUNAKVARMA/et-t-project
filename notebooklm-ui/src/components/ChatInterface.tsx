@@ -7,6 +7,34 @@ import { getApiBaseUrl } from '@/lib/api';
 import { formatRelativeTime } from '@/lib/time';
 import styles from './ChatInterface.module.css';
 
+function IconUser() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M12 12a4 4 0 100-8 4 4 0 000 8zM4 20a8 8 0 0116 0"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function IconCosmic() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M12 3l1.2 3.3L16.5 8l-3.3 1.7L12 13l-1.2-3.3L7.5 8l3.3-1.7L12 3z"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinejoin="round"
+        fill="rgba(103,232,249,0.15)"
+      />
+      <circle cx="12" cy="12" r="2" fill="currentColor" opacity="0.9" />
+    </svg>
+  );
+}
+
 interface SourceRef {
   document?: string;
   score: number;
@@ -174,16 +202,143 @@ const ChatInterface: React.FC = () => {
 
   return (
     <div className={styles.wrap}>
-      <div className={styles.toolbar}>
-        <button
-          type="button"
-          className={styles.clearBtn}
-          disabled={messages.length === 0 || isClearing}
-          onClick={() => setShowClearConfirm(true)}
-          aria-label="Clear chat history"
-        >
-          Clear chat history
-        </button>
+      <div className={styles.shell}>
+        <div className={styles.shellInner}>
+          <div className={styles.toolbar}>
+            <button
+              type="button"
+              className={styles.clearBtn}
+              disabled={messages.length === 0 || isClearing}
+              onClick={() => setShowClearConfirm(true)}
+              aria-label="Clear chat history"
+            >
+              Clear
+            </button>
+          </div>
+
+          <div
+            className={`${styles.chatPanel} ${isClearing ? styles.chatPanelFadeOut : ''}`}
+            aria-live="polite"
+          >
+            {messages.length === 0 && !isLoading && (
+              <div className={styles.emptyState}>
+                <div className={styles.emptyOrbit} aria-hidden />
+                <h2 className={styles.emptyTitle}>Indexed knowledge, cosmic answers</h2>
+                <p className={styles.emptySubtitle}>
+                  Upload documents below, then ask questions in plain language. Retrieval runs against your
+                  corpus before the model responds.
+                </p>
+              </div>
+            )}
+
+            {messages.map((msg, idx) => (
+              <div
+                key={`${msg.timestamp.getTime()}-${idx}`}
+                className={`${styles.msgRow} ${msg.role === 'user' ? styles.msgRowUser : styles.msgRowAssistant}`}
+              >
+                <div
+                  className={`${styles.avatar} ${msg.role === 'user' ? styles.avatarUser : styles.avatarAssistant}`}
+                >
+                  {msg.role === 'user' ? <IconUser /> : <IconCosmic />}
+                </div>
+                <div className={styles.msgCard}>
+                  <div className={styles.roleRow}>
+                    <span
+                      className={`${styles.roleLabel} ${msg.role === 'assistant' ? styles.roleLabelAssistant : styles.roleLabelUser}`}
+                    >
+                      {msg.role === 'user' ? 'You' : 'Cosmic AI'}
+                    </span>
+                    <span className={styles.time} suppressHydrationWarning>
+                      {formatRelativeTime(msg.timestamp)}
+                    </span>
+                  </div>
+                  <div className={styles.body}>
+                    {msg.content.split('\n').map((line, li) => (
+                      <span key={li}>
+                        {line}
+                        {li < msg.content.split('\n').length - 1 && <br />}
+                      </span>
+                    ))}
+                  </div>
+                  {msg.sources && msg.sources.length > 0 && (
+                    <details className={styles.sources}>
+                      <summary className={styles.sourcesSummary}>
+                        {msg.sources.length} source{msg.sources.length > 1 ? 's' : ''} referenced
+                      </summary>
+                      <ul>
+                        {msg.sources.map((src, i) => (
+                          <li key={i} className={styles.sourceItem}>
+                            <span className={styles.sourceDoc}>{src.document ?? 'Document'}</span>
+                            <span className={styles.sourceMeta}>
+                              {typeof src.score === 'number' && `score ${src.score.toFixed(2)} · `}
+                              chunk {src.chunk_index}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  )}
+                </div>
+              </div>
+            ))}
+
+            {isLoading && (
+              <div className={styles.typingRow} aria-live="polite">
+                <div className={`${styles.avatar} ${styles.avatarAssistant}`}>
+                  <IconCosmic />
+                </div>
+                <div className={styles.typingCard}>
+                  <span>Cosmic AI is thinking</span>
+                  <span className={styles.dots} aria-hidden>
+                    <span />
+                    <span />
+                    <span />
+                  </span>
+                </div>
+              </div>
+            )}
+            <div ref={messagesEndRef} />
+          </div>
+
+          <div className={styles.formWrap}>
+            <form className={styles.form} onSubmit={handleSend}>
+              <input
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="Ask the cosmos..."
+                className={styles.input}
+                disabled={isLoading}
+                aria-label="Message"
+              />
+              <button type="submit" disabled={isLoading || !input.trim()} className={styles.sendBtn}>
+                Send
+              </button>
+            </form>
+          </div>
+
+          <div className={styles.docSection}>
+            <DocumentUpload onFileUpload={handleFileUpload} />
+            {docError && (
+              <p role="alert" className={styles.docError}>
+                {docError}
+              </p>
+            )}
+            {documents.length > 0 && (
+              <ul className={styles.docList}>
+                {documents.map((doc) => (
+                  <li key={doc.id} className={styles.docRow}>
+                    <FileTypeIcon type={doc.type} />
+                    <span className={styles.docName} title={doc.name}>
+                      {doc.name}
+                    </span>
+                    <span className={styles.docMeta}>{doc.chunks} chunks</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
       </div>
 
       {showClearConfirm && (
@@ -207,100 +362,6 @@ const ChatInterface: React.FC = () => {
           </div>
         </div>
       )}
-
-      <div
-        className={`${styles.chatPanel} ${isClearing ? styles.chatPanelFadeOut : ''}`}
-        aria-live="polite"
-      >
-        {messages.map((msg, idx) => (
-          <div key={`${msg.timestamp.getTime()}-${idx}`} className={styles.message}>
-            <div className={styles.roleRow}>
-              <span
-                className={`${styles.roleLabel} ${msg.role === 'assistant' ? styles.roleLabelAssistant : ''}`}
-              >
-                {msg.role === 'user' ? 'You' : 'Cosmic AI'}
-              </span>
-              <span className={styles.time} suppressHydrationWarning>
-                {formatRelativeTime(msg.timestamp)}
-              </span>
-            </div>
-            <div className={styles.body}>
-              {msg.content.split('\n').map((line, li) => (
-                <span key={li}>
-                  {line}
-                  {li < msg.content.split('\n').length - 1 && <br />}
-                </span>
-              ))}
-            </div>
-            {msg.sources && msg.sources.length > 0 && (
-              <details className={styles.sources}>
-                <summary className={styles.sourcesSummary}>
-                  {msg.sources.length} source{msg.sources.length > 1 ? 's' : ''} referenced
-                </summary>
-                <ul>
-                  {msg.sources.map((src, i) => (
-                    <li key={i} className={styles.sourceItem}>
-                      <span className={styles.sourceDoc}>{src.document ?? 'Document'}</span>
-                      <span className={styles.sourceMeta}>
-                        {typeof src.score === 'number' && `score ${src.score.toFixed(2)} · `}
-                        chunk {src.chunk_index}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </details>
-            )}
-          </div>
-        ))}
-        {isLoading && (
-          <div className={styles.typing} aria-live="polite">
-            <span>AI is typing</span>
-            <span className={styles.dots} aria-hidden>
-              <span />
-              <span />
-              <span />
-            </span>
-          </div>
-        )}
-        <div ref={messagesEndRef} />
-      </div>
-
-      <form className={styles.form} onSubmit={handleSend}>
-        <input
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="Ask the cosmos..."
-          className={styles.input}
-          disabled={isLoading}
-          aria-label="Message"
-        />
-        <button type="submit" disabled={isLoading || !input.trim()} className={styles.sendBtn}>
-          Send
-        </button>
-      </form>
-
-      <div className={styles.docSection}>
-        <DocumentUpload onFileUpload={handleFileUpload} />
-        {docError && (
-          <p role="alert" style={{ color: '#ff80ab', fontSize: '0.875rem', marginTop: '0.5rem' }}>
-            {docError}
-          </p>
-        )}
-        {documents.length > 0 && (
-          <ul className={styles.docList}>
-            {documents.map((doc) => (
-              <li key={doc.id} className={styles.docRow}>
-                <FileTypeIcon type={doc.type} />
-                <span className={styles.docName} title={doc.name}>
-                  {doc.name}
-                </span>
-                <span className={styles.docMeta}>{doc.chunks} chunks</span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
     </div>
   );
 };

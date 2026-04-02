@@ -2,61 +2,55 @@
 
 import Link from 'next/link';
 import ChatInterface from '../../components/ChatInterface';
+import styles from './ChatPage.module.css';
 
 export default function ChatPage() {
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        background: 'radial-gradient(ellipse at 50% 0%, #0d1a2e 0%, #050510 60%, #000 100%)',
-      }}
-    >
-      <nav
-        style={{
-          position: 'sticky',
-          top: 0,
-          zIndex: 20,
-          display: 'flex',
-          alignItems: 'center',
-          padding: '0.75rem 1.25rem',
-          background: 'rgba(5,5,16,0.8)',
-          backdropFilter: 'blur(12px)',
-          borderBottom: '1px solid rgba(0,229,255,0.1)',
-        }}
-      >
-        <Link
-          href="/"
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '0.4rem',
-            color: '#00d4ff',
-            textDecoration: 'none',
-            fontSize: '0.9rem',
-            padding: '0.35rem 0.75rem',
-            borderRadius: '8px',
-            border: '1px solid rgba(0,212,255,0.25)',
-            transition: 'background 0.2s ease',
-          }}
-        >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
-            <path d="M10 3L5 8l5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    <div className={styles.page}>
+      <div className={styles.bgLayer} aria-hidden>
+        <div className={`${styles.stars} ${styles.bgLayer}`} />
+        <div className={`${styles.nebula} ${styles.bgLayer}`} />
+        <div className={`${styles.grid} ${styles.bgLayer}`} />
+        <div className={`${styles.vignette} ${styles.bgLayer}`} />
+      </div>
+
+      <nav className={styles.nav}>
+        <Link href="/" className={styles.backLink}>
+          <svg width="18" height="18" viewBox="0 0 16 16" fill="none" aria-hidden>
+            <path
+              d="M10 3L5 8l5 5"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
           </svg>
           Back to Galaxy
         </Link>
-        <span
-          style={{
-            marginLeft: 'auto',
-            color: 'rgba(255,255,255,0.5)',
-            fontSize: '0.8rem',
-            letterSpacing: '0.08em',
-            textTransform: 'uppercase',
-          }}
-        >
-          Cosmic RAG
-        </span>
+
+        <div className={styles.navCenter}>
+          <span className={styles.navIcon} aria-hidden>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+              <circle cx="12" cy="12" r="2" fill="#67e8f9" />
+              <circle cx="12" cy="5" r="1.2" fill="#a78bfa" opacity="0.9" />
+              <circle cx="19" cy="12" r="1.2" fill="#a78bfa" opacity="0.7" />
+              <circle cx="12" cy="19" r="1.2" fill="#a78bfa" opacity="0.5" />
+              <circle cx="5" cy="12" r="1.2" fill="#a78bfa" opacity="0.6" />
+              <path
+                d="M12 7v2M12 15v2M7 12H5M19 12h-2"
+                stroke="rgba(103,232,249,0.35)"
+                strokeWidth="0.75"
+                strokeLinecap="round"
+              />
+            </svg>
+          </span>
+          <span className={styles.navTitle}>Cosmic RAG</span>
+        </div>
+
+        <span className={styles.badge}>Groq · RAG</span>
       </nav>
-      <main style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+
+      <main className={styles.main}>
         <ChatInterface />
       </main>
     </div>
